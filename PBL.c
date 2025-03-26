@@ -1,73 +1,44 @@
 #include <stdio.h>
 #include <string.h>
+#include <stdlib.h>
 
 #define MAX_BUSES 10
 #define MAX_SEATS 50
-#define MAX_WAITLIST 10  // Max waitlisted passengers per bus
+#define MAX_WAITLIST 10
 
-// Structure for waitlist queue
+// Structure to represent a passenger in the waitlist
 typedef struct {
-    int front, rear, size;
-    int passengers[MAX_WAITLIST];
-} Queue;
-
-// Function to initialize the queue
-void initQueue(Queue *q) {
-    q->front = 0;
-    q->rear = -1;
-    q->size = 0;
-}
-
-// Function to check if queue is empty
-int isQueueEmpty(Queue *q) {
-    return q->size == 0;
-}
-
-// Function to check if queue is full
-int isQueueFull(Queue *q) {
-    return q->size == MAX_WAITLIST;
-}
-
-// Function to enqueue a passenger
-void enqueue(Queue *q, int passenger) {
-    if (isQueueFull(q)) {
-        printf("Waitlist is full!\n");
-        return;
-    }
-    q->rear = (q->rear + 1) % MAX_WAITLIST;
-    q->passengers[q->rear] = passenger;
-    q->size++;
-}
-
-// Function to dequeue a passenger
-int dequeue(Queue *q) {
-    if (isQueueEmpty(q)) {
-        return -1;
-    }
-    int passenger = q->passengers[q->front];
-    q->front = (q->front + 1) % MAX_WAITLIST;
-    q->size--;
-    return passenger;
-}
+    int passenger_id;
+    char passenger_name[50];
+} WaitlistPassenger;
 
 // Structure to represent a bus
-typedef struct {
+typedef struct
+{
     int bus_id;
     char source[50];
     char destination[50];
     int total_seats;
     int available_seats;
-    int booked_seats[MAX_SEATS];
-    Queue waitlist;  // Queue for waitlisted passengers
+    int booked_seats[MAX_SEATS]; // Array to track booked seats
+    
+    // Waitlist queue
+    WaitlistPassenger waitlist[MAX_WAITLIST];
+    int waitlist_front;
+    int waitlist_rear;
+    int waitlist_count;
 } Bus;
 
 // Array to store all buses
 Bus buses[MAX_BUSES];
 int bus_count = 0;
+int next_passenger_id = 1;
 
 // Function to add a new bus
-void add_bus(int id, char source[], char destination[], int seats) {
-    if (bus_count >= MAX_BUSES) {
+void add_bus(int id, char source[], char destination[], int seats)
+{
+    if (bus_count >= MAX_BUSES)
+    {
         printf("Cannot add more buses. Limit reached.\n");
         return;
     }
@@ -76,79 +47,81 @@ void add_bus(int id, char source[], char destination[], int seats) {
     strcpy(buses[bus_count].destination, destination);
     buses[bus_count].total_seats = seats;
     buses[bus_count].available_seats = seats;
-    for (int i = 0; i < seats; i++) {
+    
+    // Initialize booked seats
+    for (int i = 0; i < seats; i++)
+    {
         buses[bus_count].booked_seats[i] = 0;
     }
-    initQueue(&buses[bus_count].waitlist); // Initialize waitlist queue
+    
+    // Initialize waitlist
+    buses[bus_count].waitlist_front = 0;
+    buses[bus_count].waitlist_rear = -1;
+    buses[bus_count].waitlist_count = 0;
+    
     bus_count++;
     printf("Bus added successfully!\n");
 }
 
 // Function to display all buses
-void display_buses() {
-    if (bus_count == 0) {
+void display_buses()
+{
+    if (bus_count == 0)
+    {
         printf("No buses available.\n");
         return;
     }
     printf("Available Buses:\n");
-    printf("ID\tSource\t\tDestination\tTotal Seats\tAvailable Seats\n");
-    for (int i = 0; i < bus_count; i++) {
-        printf("%d\t%s\t\t%s\t\t%d\t\t%d\n",
+    printf("ID\tSource\t\tDestination\tTotal Seats\tAvailable Seats\tWaitlist\n");
+    for (int i = 0; i < bus_count; i++)
+    {
+        printf("%d\t%s\t\t%s\t\t%d\t\t%d\t\t%d\n",
                buses[i].bus_id, buses[i].source, buses[i].destination,
-               buses[i].total_seats, buses[i].available_seats);
+               buses[i].total_seats, buses[i].available_seats, 
+               buses[i].waitlist_count);
     }
 }
 
-// Function to book a seat or add to waitlist
-void book_ticket(int bus_id, int seat_number, int passenger_id) {
-    for (int i = 0; i < bus_count; i++) {
-        if (buses[i].bus_id == bus_id) {
-            if (buses[i].available_seats > 0) {
-                if (seat_number < 1 || seat_number > buses[i].total_seats) {
-                    printf("Invalid seat number.\n");
-                    return;
-                }
-                if (buses[i].booked_seats[seat_number - 1] == 1) {
-                    printf("Seat %d is already booked.\n", seat_number);
-                    return;
-                }
-                buses[i].booked_seats[seat_number - 1] = 1;
-                buses[i].available_seats--;
-                printf("Seat %d booked successfully for Passenger %d on Bus %d.\n", seat_number, passenger_id, bus_id);
-            } else {
-                if (!isQueueFull(&buses[i].waitlist)) {
-                    enqueue(&buses[i].waitlist, passenger_id);
-                    printf("Bus is full! Passenger %d added to the waitlist for Bus %d.\n", passenger_id, bus_id);
-                } else {
-                    printf("Bus is full, and waitlist is full! No booking possible for Passenger %d.\n", passenger_id);
+// Function to book a ticket
+void book_ticket(int bus_id, char passenger_name[])
+{
+    for (int i = 0; i < bus_count; i++)
+    {
+        if (buses[i].bus_id == bus_id)
+        {
+            // If seats are available, book a seat
+            if (buses[i].available_seats > 0)
+            {
+                // Find first available seat
+                for (int j = 0; j < buses[i].total_seats; j++)
+                {
+                    if (buses[i].booked_seats[j] == 0)
+                    {
+                        buses[i].booked_seats[j] = 1;
+                        buses[i].available_seats--;
+                        printf("Seat %d booked successfully on Bus %d for %s.\n", 
+                               j + 1, bus_id, passenger_name);
+                        return;
+                    }
                 }
             }
-            return;
-        }
-    }
-    printf("Bus ID not found.\n");
-}
-
-// Function to cancel a booked seat and assign to waitlist if available
-void cancel_ticket(int bus_id, int seat_number) {
-    for (int i = 0; i < bus_count; i++) {
-        if (buses[i].bus_id == bus_id) {
-            if (seat_number < 1 || seat_number > buses[i].total_seats || buses[i].booked_seats[seat_number - 1] == 0) {
-                printf("Invalid cancellation. Seat %d is not booked.\n", seat_number);
+            
+            // If no seats available, check waitlist
+            if (buses[i].waitlist_count < MAX_WAITLIST)
+            {
+                // Add to waitlist
+                buses[i].waitlist_rear = (buses[i].waitlist_rear + 1) % MAX_WAITLIST;
+                strcpy(buses[i].waitlist[buses[i].waitlist_rear].passenger_name, passenger_name);
+                buses[i].waitlist[buses[i].waitlist_rear].passenger_id = next_passenger_id++;
+                buses[i].waitlist_count++;
+                
+                printf("No seats available. %s added to waitlist. Waitlist position: %d\n", 
+                       passenger_name, buses[i].waitlist_count);
                 return;
             }
-            buses[i].booked_seats[seat_number - 1] = 0;
-            buses[i].available_seats++;
-
-            // Check if waitlisted passengers exist
-            if (!isQueueEmpty(&buses[i].waitlist)) {
-                int next_passenger = dequeue(&buses[i].waitlist);
-                buses[i].booked_seats[seat_number - 1] = 1;
-                buses[i].available_seats--;
-                printf("Seat %d is now assigned to waitlisted Passenger %d.\n", seat_number, next_passenger);
-            } else {
-                printf("Seat %d canceled successfully on Bus %d.\n", seat_number, bus_id);
-            }
+            
+            // Waitlist is full
+            printf("Sorry, bus is fully booked and waitlist is full.\n");
             return;
         }
     }
@@ -156,14 +129,84 @@ void cancel_ticket(int bus_id, int seat_number) {
 }
 
 // Function to display booked seats for a bus
-void display_booked_seats(int bus_id) {
-    for (int i = 0; i < bus_count; i++) {
-        if (buses[i].bus_id == bus_id) {
+void display_booked_seats(int bus_id)
+{
+    for (int i = 0; i < bus_count; i++)
+    {
+        if (buses[i].bus_id == bus_id)
+        {
             printf("Booked seats for Bus %d:\n", bus_id);
-            for (int j = 0; j < buses[i].total_seats; j++) {
-                if (buses[i].booked_seats[j] == 1) {
+            for (int j = 0; j < buses[i].total_seats; j++)
+            {
+                if (buses[i].booked_seats[j] == 1)
+                {
                     printf("Seat %d\n", j + 1);
                 }
+            }
+            
+            // Display waitlist
+            printf("\nWaitlist for Bus %d:\n", bus_id);
+            if (buses[i].waitlist_count == 0)
+            {
+                printf("No passengers in waitlist.\n");
+            }
+            else
+            {
+                for (int j = 0; j < buses[i].waitlist_count; j++)
+                {
+                    int index = (buses[i].waitlist_front + j) % MAX_WAITLIST;
+                    printf("Position %d: %s (ID: %d)\n", 
+                           j + 1, 
+                           buses[i].waitlist[index].passenger_name,
+                           buses[i].waitlist[index].passenger_id);
+                }
+            }
+            return;
+        }
+    }
+    printf("Bus ID not found.\n");
+}
+
+// Function to cancel a ticket and potentially fill from waitlist
+void cancel_ticket(int bus_id, int seat_number)
+{
+    for (int i = 0; i < bus_count; i++)
+    {
+        if (buses[i].bus_id == bus_id)
+        {
+            if (seat_number < 1 || seat_number > buses[i].total_seats)
+            {
+                printf("Invalid seat number.\n");
+                return;
+            }
+            
+            if (buses[i].booked_seats[seat_number - 1] == 0)
+            {
+                printf("Seat %d is not booked.\n", seat_number);
+                return;
+            }
+            
+            // Cancel the seat
+            buses[i].booked_seats[seat_number - 1] = 0;
+            buses[i].available_seats++;
+            printf("Seat %d cancelled on Bus %d.\n", seat_number, bus_id);
+            
+            // Check if there's a waitlist passenger to fill the seat
+            if (buses[i].waitlist_count > 0)
+            {
+                // Get the first passenger from waitlist
+                WaitlistPassenger next_passenger = buses[i].waitlist[buses[i].waitlist_front];
+                
+                // Book the newly available seat for the waitlist passenger
+                buses[i].booked_seats[seat_number - 1] = 1;
+                buses[i].available_seats--;
+                
+                // Remove passenger from waitlist
+                buses[i].waitlist_front = (buses[i].waitlist_front + 1) % MAX_WAITLIST;
+                buses[i].waitlist_count--;
+                
+                printf("Waitlist passenger %s has been allocated seat %d.\n", 
+                       next_passenger.passenger_name, seat_number);
             }
             return;
         }
@@ -172,63 +215,66 @@ void display_booked_seats(int bus_id) {
 }
 
 // Main function
-int main() {
-    int choice, bus_id, seat_number, passenger_id;
-    char source[50], destination[50];
+int main()
+{
+    int choice, bus_id, seat_number;
+    char source[50], destination[50], passenger_name[50];
     int seats;
 
-    while (1) {
+    while (1)
+    {
         printf("\nBus Ticket Booking System\n");
         printf("1. Add Bus\n");
         printf("2. Display Buses\n");
         printf("3. Book Ticket\n");
-        printf("4. Cancel Ticket\n");
-        printf("5. Display Booked Seats\n");
+        printf("4. Display Booked Seats and Waitlist\n");
+        printf("5. Cancel Ticket\n");
         printf("6. Exit\n");
         printf("Enter your choice: ");
         scanf("%d", &choice);
 
-        switch (choice) {
-            case 1:
-                printf("Enter Bus ID: ");
-                scanf("%d", &bus_id);
-                printf("Enter Source: ");
-                scanf("%s", source);
-                printf("Enter Destination: ");
-                scanf("%s", destination);
-                printf("Enter Total Seats: ");
-                scanf("%d", &seats);
-                add_bus(bus_id, source, destination, seats);
-                break;
-            case 2:
-                display_buses();
-                break;
-            case 3:
-                printf("Enter Bus ID: ");
-                scanf("%d", &bus_id);
-                printf("Enter Seat Number: ");
-                scanf("%d", &seat_number);
-                printf("Enter Passenger ID: ");
-                scanf("%d", &passenger_id);
-                book_ticket(bus_id, seat_number, passenger_id);
-                break;
-            case 4:
-                printf("Enter Bus ID: ");
-                scanf("%d", &bus_id);
-                printf("Enter Seat Number: ");
-                scanf("%d", &seat_number);
-                cancel_ticket(bus_id, seat_number);
-                break;
-            case 5:
-                printf("Enter Bus ID: ");
-                scanf("%d", &bus_id);
-                display_booked_seats(bus_id);
-                break;
-            case 6:
-                printf("Exiting...\n");
-                return 0;
-            default:
-                printf("Invalid choice. Please try again.\n");
+        switch (choice)
+        {
+        case 1:
+            printf("Enter Bus ID: ");
+            scanf("%d", &bus_id);
+            printf("Enter Source: ");
+            scanf("%s", source);
+            printf("Enter Destination: ");
+            scanf("%s", destination);
+            printf("Enter Total Seats: ");
+            scanf("%d", &seats);
+            add_bus(bus_id, source, destination, seats);
+            break;
+        case 2:
+            display_buses();
+            break;
+        case 3:
+            printf("Enter Bus ID: ");
+            scanf("%d", &bus_id);
+            printf("Enter Passenger Name: ");
+            scanf("%s", passenger_name);
+            book_ticket(bus_id, passenger_name);
+            break;
+        case 4:
+            printf("Enter Bus ID: ");
+            scanf("%d", &bus_id);
+            display_booked_seats(bus_id);
+            break;
+        case 5:
+            printf("Enter Bus ID: ");
+            scanf("%d", &bus_id);
+            printf("Enter Seat Number to Cancel: ");
+            scanf("%d", &seat_number);
+            cancel_ticket(bus_id, seat_number);
+            break;
+        case 6:
+            printf("Exiting...\n");
+            return 0;
+        default:
+            printf("Invalid choice. Please try again.\n");
         }
     }
+
+    return 0;
 }
